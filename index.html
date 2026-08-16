@@ -177,6 +177,27 @@
   .fbtn:hover{color:var(--ink);border-color:var(--ink)}
   .fbtn.danger:hover{color:var(--iron);border-color:var(--iron)}
 
+  /* ---------- backup reminder ---------- */
+  .modal-overlay{
+    position:fixed;inset:0;z-index:60;background:rgba(22,37,42,.55);
+    display:none;align-items:center;justify-content:center;padding:24px;
+  }
+  .modal-overlay.open{display:flex}
+  .modal-box{
+    background:var(--paper);border:1.5px solid var(--ink);max-width:440px;width:100%;padding:26px;
+  }
+  .modal-box h3{font-family:"Archivo",sans-serif;font-weight:800;text-transform:uppercase;
+    font-size:18px;letter-spacing:-.01em;margin:0 0 12px}
+  .modal-box p{margin:0 0 10px;font-size:16px}
+  .modal-box .small{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.06em;
+    color:var(--ink-soft);margin:0 0 22px}
+  .modal-btns{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+  .modal-btn{font-family:"Archivo",sans-serif;font-weight:600;text-transform:uppercase;
+    font-size:12.5px;letter-spacing:.06em;padding:11px 18px;border:1px solid var(--rule);color:var(--ink-soft)}
+  .modal-btn:hover{color:var(--ink);border-color:var(--ink)}
+  .modal-btn.primary{background:var(--water-deep);color:var(--paper);border-color:var(--water-deep)}
+  .modal-btn.primary:hover{background:var(--ink);border-color:var(--ink)}
+
   @media (max-width:640px){
     .wrap{padding:26px 16px 70px}
     .head{align-items:flex-start}
@@ -232,9 +253,10 @@
     <h3>Lock this to your account</h3>
     <p>Any Google account can sign in until you set the lock. Your UID is:</p>
     <p><code id="uidValue" style="user-select:all"></code></p>
-    <p>Paste it into <code>ALLOWED_UID</code> near the top of the script, and into
-       <code>firestore.rules</code> where it says <code>PASTE_YOUR_UID</code>.
-       Publish the rules, push the code, and this box disappears.</p>
+    <p>Paste it into the rules comment block near the top of the script, replacing
+       <code>PASTE_YOUR_UID</code>, then publish those rules in the Firebase console —
+       that's what clears any "couldn't reach your saved data" error. Then paste it into
+       <code>ALLOWED_UID</code> just above, and this box disappears.</p>
   </div>
 
   <div id="status"></div>
@@ -293,7 +315,7 @@
     <ul class="ms" id="msList"></ul>
 
     <footer>
-      <span>60 weeks · 4,300 planned miles</span>
+      <span id="backupNote">60 weeks · 4,300 planned miles</span>
       <div class="fbtns">
         <button class="fbtn" id="btnExport" type="button">Export backup</button>
         <button class="fbtn" id="btnImport" type="button">Import backup</button>
@@ -304,12 +326,25 @@
   </main>
 </div>
 
+<!-- ===================== BACKUP REMINDER ===================== -->
+<div class="modal-overlay" id="backup-reminder-overlay">
+  <div class="modal-box">
+    <h3>Sunday backup</h3>
+    <p>It's been a week since your last backup. Everything's still saved in Firebase — this is just a local copy in case you ever lose access to the project.</p>
+    <p class="small" id="reminderAge"></p>
+    <div class="modal-btns">
+      <button class="modal-btn" id="backup-reminder-later" type="button">Remind me tomorrow</button>
+      <button class="modal-btn primary" id="backup-reminder-download" type="button">Download backup now</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // =====================================================================
 // FIREBASE CONFIG — paste your project's config object here.
 // Firebase Console → Project settings → General → Your apps → Config.
 // These values are NOT secrets; they identify the project publicly.
-// Your data is protected by firestore.rules, not by hiding this.
+// Your data is protected by the Firestore rules below, not by hiding this.
 // =====================================================================
 const firebaseConfig = {
   apiKey:            "AIzaSyBjUh1y-aKOKMBFZhRRzNTTQfz2mCcNAbU",
@@ -322,8 +357,8 @@ const firebaseConfig = {
 
 // =====================================================================
 // SINGLE-USER LOCK — leave empty on first run.
-// Sign in once, copy the UID the page shows you, paste it here AND into
-// firestore.rules. After that, any other account is signed straight out.
+// Set to the owner's UID. Any other Google account that signs in is
+// signed straight back out.
 // =====================================================================
 const ALLOWED_UID = "pz7Mj06rOoUJ4fPEdrKva3gB0733";
 
@@ -335,10 +370,9 @@ const ALLOWED_UID = "pz7Mj06rOoUJ4fPEdrKva3gB0733";
 // the console is a required step. This block is just where the text is
 // kept so there's only one file to look after.
 //
-// Replace PASTE_YOUR_UID with the UID this page shows you after your
-// first sign-in. This is what actually protects your data — the
-// ALLOWED_UID check above is only a courtesy message, and anyone can
-// bypass client-side code.
+// The UID is already filled in below. These rules are what actually
+// protect the data — the ALLOWED_UID check above is only a courtesy
+// message, and anyone can bypass client-side code.
 // =====================================================================
 //
 // rules_version = '2';
@@ -349,7 +383,7 @@ const ALLOWED_UID = "pz7Mj06rOoUJ4fPEdrKva3gB0733";
 //     match /users/{userId}/logbook/{docId} {
 //       allow read, write: if request.auth != null
 //                          && request.auth.uid == userId
-//                          && request.auth.uid == "PASTE_YOUR_UID";
+//                          && request.auth.uid == "pz7Mj06rOoUJ4fPEdrKva3gB0733";
 //     }
 //
 //     match /{document=**} {
@@ -527,7 +561,7 @@ const MILESTONES = [
 ];
 
 const BOOK_KEY = "book";
-let state = { rides:[], done:{} };
+let state = { rides:[], done:{}, lastBackup:0, snoozeUntil:0 };
 let sel = 0, surf = "paved", saveTimer = null, booted = false;
 
 const DAY = 864e5;
@@ -552,8 +586,10 @@ async function loadBook(){
       const v = JSON.parse(raw);
       state.rides = Array.isArray(v.rides) ? v.rides : [];
       state.done  = (v.done && typeof v.done === "object") ? v.done : {};
+      state.lastBackup  = v.lastBackup  || 0;
+      state.snoozeUntil = v.snoozeUntil || 0;
     }
-    renderAll(); renderMilestones();
+    renderAll(); renderMilestones(); renderBackupNote(); checkBackupReminder();
     setStatus(state.rides.length ? state.rides.length + " rides in the book."
                                  : "Nothing logged yet — add your first ride below.");
   } catch (e) {
@@ -578,6 +614,45 @@ function save(){
     renderSyncBadge();
   }, 250);
 }
+
+/* ---------- backup reminder (anchored to Sunday) ----------
+   Fires if a Sunday has passed since the last backup — including today if
+   it's Sunday. A missed Sunday keeps nagging daily rather than waiting a
+   whole week, and "remind me tomorrow" snoozes for 24h. */
+function lastSundayStart(){
+  const n = new Date();
+  const d = new Date(n.getFullYear(), n.getMonth(), n.getDate());
+  d.setDate(d.getDate() - d.getDay());   // getDay() === 0 on Sunday
+  return d.getTime();
+}
+function daysSince(ts){ return Math.floor((Date.now() - ts) / DAY); }
+
+function renderBackupNote(){
+  const el = $("backupNote");
+  if (!el) return;
+  const base = "60 weeks · 4,300 planned miles";
+  if (!state.lastBackup) { el.textContent = base + " · never backed up"; return; }
+  const d = daysSince(state.lastBackup);
+  el.textContent = base + " · backed up " + (d === 0 ? "today" : d === 1 ? "yesterday" : d + " days ago");
+}
+
+function markBackedUp(){
+  state.lastBackup = Date.now();
+  save();
+  renderBackupNote();
+}
+
+function checkBackupReminder(){
+  if (!state.rides.length) return;                       // nothing worth backing up yet
+  if ((state.snoozeUntil || 0) > Date.now()) return;     // snoozed
+  if ((state.lastBackup || 0) >= lastSundayStart()) return;
+  const age = state.lastBackup
+    ? "Last backup: " + daysSince(state.lastBackup) + " days ago."
+    : "You haven't exported a backup yet.";
+  $("reminderAge").textContent = age;
+  $("backup-reminder-overlay").classList.add("open");
+}
+function closeReminder(){ $("backup-reminder-overlay").classList.remove("open"); }
 
 const milesIn = i => state.rides.filter(r => weekOf(r.date) === i).reduce((s,r) => s + r.mi, 0);
 const currentWeek = () => Math.max(0, Math.min(WEEKS.length-1, Math.floor((parseD(todayISO())-W0)/(7*DAY))));
@@ -740,6 +815,7 @@ function bootApp(){
   buildProfileAxes();
   renderAll();
   renderMilestones();
+  renderBackupNote();
 
   $("btnAdd").addEventListener("click", addRide);
   $("inMi").addEventListener("keydown", e => { if (e.key === "Enter") addRide(); });
@@ -757,7 +833,17 @@ function bootApp(){
   $("btnExport").addEventListener("click", () => {
     download("towpath-logbook-" + todayISO() + ".json",
       JSON.stringify({ version:1, exported:new Date().toISOString(), rides:state.rides, done:state.done }, null, 2));
+    markBackedUp();
     setStatus("Backup downloaded.");
+  });
+
+  $("backup-reminder-later").addEventListener("click", () => {
+    state.snoozeUntil = Date.now() + DAY;
+    save(); closeReminder();
+  });
+  $("backup-reminder-download").addEventListener("click", () => {
+    $("btnExport").click();
+    closeReminder();
   });
 
   $("btnImport").addEventListener("click", () => $("fileIn").click());
@@ -778,7 +864,7 @@ function bootApp(){
 
   $("btnReset").addEventListener("click", async () => {
     if (!confirm("Delete every logged ride and checked milestone? Export a backup first if you're unsure.")) return;
-    state = { rides:[], done:{} };
+    state = { rides:[], done:{}, lastBackup:0, snoozeUntil:0 };
     try { await storage.remove(BOOK_KEY); setStatus("Logbook cleared."); }
     catch (e) { save(); }
     renderAll(); renderMilestones();
