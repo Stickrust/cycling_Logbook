@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Towpath Logbook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&family=IBM+Plex+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#DCE0D7; --paper-2:#D2D7CC; --paper-3:#C7CDC0;
+    --ink:#16252A; --ink-soft:#4E5F5E;
+    --water:#3E6E63; --water-deep:#23443E; --water-pale:#8FAAA1;
+    --towpath:#B9A87F; --iron:#9E3B2A; --rule:#A7B0A4;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;background:var(--paper);color:var(--ink);
+    font-family:"Newsreader",Georgia,serif;font-size:17px;line-height:1.5}
+  .wrap{max-width:1000px;margin:0 auto;padding:36px 22px 90px}
+  .wrap.gated{display:none}
+  button{font:inherit;cursor:pointer;border:none;background:none;color:inherit}
+  input,select{font:inherit;color:inherit}
+  :focus-visible{outline:2px solid var(--water-deep);outline-offset:2px}
+  [hidden]{display:none !important}
+
+  /* ---------- sign-in gate ---------- */
+  .gate-screen{
+    position:fixed;inset:0;background:var(--paper);z-index:50;
+    display:flex;align-items:center;justify-content:center;padding:24px;
+  }
+  .gate-screen.hidden{display:none}
+  .gate-box{max-width:430px;width:100%;text-align:center}
+  .gate-box .mark{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--ink-soft);margin:0 0 16px}
+  .gate-box h2{font-family:"Archivo",sans-serif;font-weight:800;text-transform:uppercase;
+    font-size:clamp(26px,6vw,38px);line-height:.96;letter-spacing:-.02em;margin:0 0 16px}
+  .gate-box h2 em{font-style:normal;color:var(--water)}
+  .gate-box p{color:var(--ink-soft);margin:0 0 28px;font-size:16px}
+  .gate-signin-btn{
+    display:inline-flex;align-items:center;gap:12px;background:var(--ink);color:var(--paper);
+    padding:13px 22px;font-family:"Archivo",sans-serif;font-weight:600;font-size:14px;
+    text-transform:uppercase;letter-spacing:.06em;
+  }
+  .gate-signin-btn:hover{background:var(--water-deep)}
+  .gate-signin-btn:disabled{opacity:.45;cursor:default;background:var(--ink)}
+  .gate-signin-btn svg{background:#fff;border-radius:2px;padding:2px}
+  .gate-error{
+    display:none;margin-top:22px;font-family:"IBM Plex Mono",monospace;font-size:12px;
+    line-height:1.7;color:var(--iron);border:1px solid var(--iron);padding:12px;text-align:left;
+  }
+  .gate-error.show{display:block}
+
+  /* ---------- masthead ---------- */
+  .eyebrow{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.15em;
+    text-transform:uppercase;color:var(--ink-soft);margin:0 0 14px}
+  .head{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;flex-wrap:wrap;
+    border-bottom:1.5px solid var(--ink);padding-bottom:18px}
+  h1{font-family:"Archivo",sans-serif;font-weight:800;text-transform:uppercase;
+    font-size:clamp(28px,5vw,50px);line-height:.95;letter-spacing:-.02em;margin:0}
+  h1 em{font-style:normal;color:var(--water)}
+  .countdown{text-align:right;font-family:"IBM Plex Mono",monospace}
+  .countdown b{display:block;font-family:"Archivo",sans-serif;font-weight:800;
+    font-size:clamp(26px,4.5vw,42px);line-height:1;letter-spacing:-.02em}
+  .countdown span{font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-soft)}
+
+  /* ---------- sync badge ---------- */
+  .syncrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 0 0;
+    font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--ink-soft)}
+  .sync-badge{display:inline-flex;align-items:center;gap:7px;letter-spacing:.06em}
+  .sync-badge::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--water)}
+  .sync-badge.offline::before{background:var(--towpath)}
+  .sync-badge.error::before{background:var(--iron)}
+  #signout-btn{margin-left:auto;text-transform:uppercase;letter-spacing:.1em;font-size:10.5px;
+    border:1px solid var(--rule);padding:5px 10px}
+  #signout-btn:hover{color:var(--iron);border-color:var(--iron)}
+
+  .setup{border:1.5px solid var(--iron);padding:20px;margin:24px 0 0;background:var(--paper-2)}
+  .setup h3{font-family:"Archivo",sans-serif;text-transform:uppercase;font-size:14px;
+    letter-spacing:.04em;margin:0 0 10px;color:var(--iron)}
+  .setup p{margin:0 0 8px;font-size:15.5px}
+  .setup code{font-family:"IBM Plex Mono",monospace;font-size:13px;background:var(--paper-3);padding:1px 5px}
+
+  #status{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink-soft);
+    padding:14px 0;min-height:20px}
+  #status.err{color:var(--iron)}
+
+  /* ---------- week panel ---------- */
+  .week{margin:20px 0 0;border:1.5px solid var(--ink);background:var(--paper-2);padding:22px}
+  .week-top{display:flex;justify-content:space-between;gap:16px;align-items:baseline;flex-wrap:wrap}
+  .week-id{font-family:"Archivo",sans-serif;font-weight:800;text-transform:uppercase;
+    font-size:clamp(19px,3vw,26px);letter-spacing:-.01em}
+  .week-meta{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--ink-soft)}
+  .tag{display:inline-block;padding:2px 8px;border:1px solid var(--rule);margin-left:8px}
+  .tag.rec{color:var(--water);border-color:var(--water)}
+  .tag.slack{color:var(--towpath);border-color:var(--towpath)}
+  .tag.trip{color:var(--iron);border-color:var(--iron)}
+
+  .bar{height:26px;background:var(--paper-3);margin:18px 0 8px;overflow:hidden}
+  .bar i{display:block;height:100%;background:var(--water);width:0;transition:width .3s ease}
+  .bar i.over{background:var(--water-deep)}
+  .bar-nums{display:flex;justify-content:space-between;font-family:"IBM Plex Mono",monospace;
+    font-size:12px;color:var(--ink-soft)}
+  .bar-nums b{color:var(--ink);font-weight:500;font-size:15px}
+  .week-note{margin:14px 0 0;font-size:16px;max-width:46em}
+
+  .logform{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:20px 0 0;
+    padding-top:18px;border-top:.8px solid var(--rule)}
+  .logform input[type=number]{width:88px}
+  .logform input{background:var(--paper);border:1px solid var(--rule);padding:9px 10px;
+    font-family:"IBM Plex Mono",monospace;font-size:14px}
+  .segs{display:flex;border:1px solid var(--rule)}
+  .segs button{padding:9px 13px;font-family:"IBM Plex Mono",monospace;font-size:11px;
+    letter-spacing:.09em;text-transform:uppercase;color:var(--ink-soft)}
+  .segs button[aria-pressed=true]{background:var(--ink);color:var(--paper)}
+  .add{background:var(--water-deep);color:var(--paper);padding:10px 20px;
+    font-family:"Archivo",sans-serif;font-weight:600;text-transform:uppercase;
+    font-size:13px;letter-spacing:.06em}
+  .add:hover{background:var(--ink)}
+
+  .rides{list-style:none;margin:16px 0 0;padding:0}
+  .rides li{display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:.8px solid var(--rule);
+    font-family:"IBM Plex Mono",monospace;font-size:13px}
+  .rides li b{font-weight:500;font-size:15px;min-width:60px}
+  .rides .surf{color:var(--ink-soft);font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+  .rides .surf.un{color:var(--towpath)}
+  .rides .del{margin-left:auto;color:var(--ink-soft);font-size:11px;letter-spacing:.09em;
+    text-transform:uppercase;padding:4px 6px}
+  .rides .del:hover{color:var(--iron)}
+  .empty{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink-soft);margin:16px 0 0}
+
+  h2{font-family:"Archivo",sans-serif;font-weight:800;text-transform:uppercase;
+    font-size:clamp(17px,2.4vw,22px);letter-spacing:-.01em;margin:56px 0 4px}
+  .h2sub{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--ink-soft);margin:0 0 20px}
+  .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .scroll svg{display:block;min-width:760px;width:100%;height:auto}
+  .chamber{fill:none;stroke:var(--water-pale);stroke-width:1}
+  .fill{fill:var(--water)}
+  .fill.done{fill:var(--water-deep)}
+  .wk-hit{fill:transparent;cursor:pointer}
+  .wk-hit:hover + .wk-ring,.wk-hit:focus-visible + .wk-ring{opacity:1}
+  .wk-ring{fill:none;stroke:var(--ink);stroke-width:1.4;opacity:0;pointer-events:none}
+  .wk-ring.sel{opacity:1;stroke:var(--iron);stroke-width:2}
+  .ax{font-family:"IBM Plex Mono",monospace;font-size:9.5px;fill:var(--ink-soft)}
+  .base{stroke:var(--ink);stroke-width:1}
+  .today{stroke:var(--iron);stroke-width:1.4;stroke-dasharray:3 3}
+
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;
+    background:var(--rule);border:1px solid var(--rule);margin:34px 0 0}
+  .stat{background:var(--paper);padding:16px 18px}
+  .stat b{display:block;font-family:"Archivo",sans-serif;font-weight:800;
+    font-size:26px;line-height:1.1;letter-spacing:-.02em}
+  .stat span{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.11em;
+    text-transform:uppercase;color:var(--ink-soft)}
+
+  .ms{list-style:none;margin:0;padding:0}
+  .ms li{border-bottom:.8px solid var(--rule)}
+  .ms button{display:flex;gap:14px;align-items:flex-start;width:100%;text-align:left;padding:14px 2px}
+  .box{flex:none;width:19px;height:19px;border:1.5px solid var(--ink);margin-top:2px;position:relative}
+  .ms button[aria-pressed=true] .box{background:var(--water-deep);border-color:var(--water-deep)}
+  .ms button[aria-pressed=true] .box::after{content:"";position:absolute;left:5px;top:1px;
+    width:5px;height:10px;border:solid var(--paper);border-width:0 2px 2px 0;transform:rotate(42deg)}
+  .ms .when{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.11em;
+    text-transform:uppercase;color:var(--ink-soft);display:block}
+  .ms button[aria-pressed=true] .txt{color:var(--ink-soft);text-decoration:line-through;
+    text-decoration-color:var(--rule)}
+
+  footer{margin-top:60px;padding-top:20px;border-top:1.5px solid var(--ink);
+    display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;align-items:center;
+    font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.05em;color:var(--ink-soft)}
+  .fbtns{display:flex;gap:8px;flex-wrap:wrap}
+  .fbtn{color:var(--ink-soft);text-transform:uppercase;letter-spacing:.11em;font-size:10.5px;
+    border:1px solid var(--rule);padding:7px 12px}
+  .fbtn:hover{color:var(--ink);border-color:var(--ink)}
+  .fbtn.danger:hover{color:var(--iron);border-color:var(--iron)}
+
+  @media (max-width:640px){
+    .wrap{padding:26px 16px 70px}
+    .head{align-items:flex-start}
+    .countdown{text-align:left}
+    .week{padding:16px}
+    .logform input[type=date]{width:100%}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<!-- Firebase (compat SDKs — plain script tags, no bundler needed) -->
+<script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore-compat.js"></script>
+
+<!-- ===================== SIGN-IN GATE ===================== -->
+<div class="gate-screen" id="gate-screen">
+  <div class="gate-box">
+    <p class="mark">Cumberland → Georgetown · 184.5 mi</p>
+    <h2>Towpath <em>logbook</em></h2>
+    <p>Sign in to open your training log.</p>
+    <button class="gate-signin-btn" id="gate-signin-btn" type="button">
+      <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#4285F4" d="M45.1 24.5c0-1.6-.1-2.7-.4-3.9H24v7.1h12.1c-.2 1.8-1.6 4.6-4.5 6.4l6.9 5.3c4.1-3.8 6.6-9.4 6.6-14.9z"/><path fill="#34A853" d="M24 46c5.9 0 10.9-2 14.5-5.3l-6.9-5.3c-1.9 1.3-4.4 2.2-7.6 2.2-5.8 0-10.7-3.8-12.5-9.1l-7.1 5.5C8.1 41.1 15.4 46 24 46z"/><path fill="#FBBC05" d="M11.5 28.5c-.5-1.4-.7-2.9-.7-4.5s.3-3.1.7-4.5l-7.1-5.5C2.9 17 2 20.4 2 24s.9 7 2.4 10z"/><path fill="#EA4335" d="M24 10.6c4.1 0 6.9 1.8 8.5 3.3l6.2-6C34.9 4.5 29.9 2 24 2 15.4 2 8.1 6.9 4.4 14l7.1 5.5c1.8-5.3 6.7-8.9 12.5-8.9z"/></svg>
+      Sign in with Google
+    </button>
+    <div class="gate-error" id="gate-error"></div>
+  </div>
+</div>
+
+<!-- ===================== APP ===================== -->
+<div class="wrap gated" id="app-wrap">
+
+  <div class="head">
+    <div>
+      <p class="eyebrow">C&amp;O Canal towpath · Cumberland → Georgetown · 184.5 mi</p>
+      <h1>Towpath <em>logbook</em></h1>
+    </div>
+    <div class="countdown">
+      <b id="cdNum">—</b>
+      <span id="cdLbl">days to departure</span>
+    </div>
+  </div>
+
+  <div class="syncrow">
+    <span class="sync-badge" id="sync-badge"><span id="sync-text">Connecting…</span></span>
+    <button id="signout-btn" type="button" hidden>Sign out</button>
+  </div>
+
+  <!-- first run: show UID so it can be pasted into the lock -->
+  <div class="setup" id="uidNotice" hidden>
+    <h3>Lock this to your account</h3>
+    <p>Any Google account can sign in until you set the lock. Your UID is:</p>
+    <p><code id="uidValue" style="user-select:all"></code></p>
+    <p>Paste it into <code>ALLOWED_UID</code> near the top of the script, and into
+       <code>firestore.rules</code> where it says <code>PASTE_YOUR_UID</code>.
+       Publish the rules, push the code, and this box disappears.</p>
+  </div>
+
+  <div id="status"></div>
+
+  <main id="app">
+    <section class="week" aria-live="polite">
+      <div class="week-top">
+        <div>
+          <div class="week-id" id="wkId">Week 1</div>
+          <div class="week-meta" id="wkDates">—</div>
+        </div>
+        <div class="week-meta" id="wkTags"></div>
+      </div>
+
+      <div class="bar"><i id="wkBar"></i></div>
+      <div class="bar-nums">
+        <span><b id="wkDone">0</b> logged</span>
+        <span id="wkLeft">—</span>
+        <span><b id="wkTgt">0</b> target</span>
+      </div>
+
+      <p class="week-note" id="wkNote"></p>
+
+      <div class="logform">
+        <input type="number" id="inMi" min="1" max="300" step="1" placeholder="miles" aria-label="Miles ridden" inputmode="decimal">
+        <input type="date" id="inDate" aria-label="Date of ride">
+        <div class="segs" role="group" aria-label="Surface">
+          <button type="button" id="sPav" aria-pressed="true">Paved</button>
+          <button type="button" id="sUnp" aria-pressed="false">Unpaved</button>
+        </div>
+        <button class="add" id="btnAdd" type="button">Add ride</button>
+      </div>
+
+      <ul class="rides" id="rideList"></ul>
+      <p class="empty" id="rideEmpty">No rides logged this week yet.</p>
+    </section>
+
+    <h2>The season</h2>
+    <p class="h2sub">Each chamber is a week — it fills as you log. Tap one to log an earlier ride.</p>
+    <div class="scroll">
+      <svg id="prof" viewBox="0 0 1000 250" role="img" aria-label="Sixty weeks of training, each shown as a chamber that fills with logged miles">
+        <g id="pAx"></g><g id="pBody"></g>
+      </svg>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><b id="stTotal">0</b><span>miles logged</span></div>
+      <div class="stat"><b id="stPct">0%</b><span>of plan to date</span></div>
+      <div class="stat"><b id="stHit">0</b><span>weeks on target</span></div>
+      <div class="stat"><b id="stLong">0</b><span>longest ride</span></div>
+      <div class="stat"><b id="stUnp">0%</b><span>unpaved</span></div>
+    </div>
+
+    <h2>Milestones</h2>
+    <p class="h2sub">The sessions that decide whether the trip goes well</p>
+    <ul class="ms" id="msList"></ul>
+
+    <footer>
+      <span>60 weeks · 4,300 planned miles</span>
+      <div class="fbtns">
+        <button class="fbtn" id="btnExport" type="button">Export backup</button>
+        <button class="fbtn" id="btnImport" type="button">Import backup</button>
+        <button class="fbtn danger" id="btnReset" type="button">Clear all</button>
+        <input type="file" id="fileIn" accept="application/json,.json" hidden>
+      </div>
+    </footer>
+  </main>
+</div>
+
+<script>
+// =====================================================================
+// FIREBASE CONFIG — paste your project's config object here.
+// Firebase Console → Project settings → General → Your apps → Config.
+// These values are NOT secrets; they identify the project publicly.
+// Your data is protected by firestore.rules, not by hiding this.
+// =====================================================================
+const firebaseConfig = {
+  apiKey:            "AIzaSyBjUh1y-aKOKMBFZhRRzNTTQfz2mCcNAbU",
+  authDomain:        "cyclinglogbook-ca4e4.firebaseapp.com",
+  projectId:         "cyclinglogbook-ca4e4",
+  storageBucket:     "cyclinglogbook-ca4e4.firebasestorage.app",
+  messagingSenderId: "294376179797",
+  appId:             "1:294376179797:web:69a8e5c52ece9d89afacdc"
+};
+
+// =====================================================================
+// SINGLE-USER LOCK — leave empty on first run.
+// Sign in once, copy the UID the page shows you, paste it here AND into
+// firestore.rules. After that, any other account is signed straight out.
+// =====================================================================
+const ALLOWED_UID = "";
+
+// =====================================================================
+// FIRESTORE RULES — copy everything between the ==== lines below into
+// Firebase Console → Firestore Database → Rules → Publish.
+//
+// Rules live on Google's servers, not in this file, so pasting them into
+// the console is a required step. This block is just where the text is
+// kept so there's only one file to look after.
+//
+// Replace PASTE_YOUR_UID with the UID this page shows you after your
+// first sign-in. This is what actually protects your data — the
+// ALLOWED_UID check above is only a courtesy message, and anyone can
+// bypass client-side code.
+// =====================================================================
+//
+// rules_version = '2';
+//
+// service cloud.firestore {
+//   match /databases/{database}/documents {
+//
+//     match /users/{userId}/logbook/{docId} {
+//       allow read, write: if request.auth != null
+//                          && request.auth.uid == userId
+//                          && request.auth.uid == "PASTE_YOUR_UID";
+//     }
+//
+//     match /{document=**} {
+//       allow read, write: if false;
+//     }
+//   }
+// }
+//
+// =====================================================================
+
+// Also: Authentication → Sign-in method → enable Google.
+// And Authentication → Settings → Authorized domains → add your
+// yourname.github.io domain, or sign-in fails with auth/unauthorized-domain.
+// =====================================================================
+
+const FIREBASE_CONFIGURED = !!firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith("PASTE_");
+const SDK_LOADED = typeof firebase !== "undefined";
+
+let db = null;
+let _resolveUid;
+let _uidResolved = false;
+const uidReady = new Promise(resolve => { _resolveUid = resolve; });
+let _authState = "signedout";   // 'signedout' | 'synced'
+let _userEmail = "";
+let _saveState = "";            // '', 'saving', 'error'
+
+const $ = id => document.getElementById(id);
+
+/* ---------- gate + badge ---------- */
+function showGate(){
+  $("gate-screen").classList.remove("hidden");
+  $("app-wrap").classList.add("gated");
+}
+function hideGate(){
+  $("gate-screen").classList.add("hidden");
+  $("app-wrap").classList.remove("gated");
+}
+function renderSyncBadge(){
+  const badge = $("sync-badge"), text = $("sync-text"), out = $("signout-btn");
+  if (!badge || !text) return;
+  badge.classList.remove("offline","error");
+
+  if (!FIREBASE_CONFIGURED || !SDK_LOADED) {
+    badge.classList.add("error"); text.textContent = "Not connected";
+    out.hidden = true;
+  } else if (navigator.onLine === false) {
+    badge.classList.add("offline");
+    text.textContent = "Offline — changes sync when you reconnect";
+    out.hidden = false;
+  } else if (_saveState === "error") {
+    badge.classList.add("error"); text.textContent = "Last save failed";
+    out.hidden = false;
+  } else if (_authState === "synced") {
+    text.textContent = _userEmail ? "Signed in as " + _userEmail : "Signed in";
+    out.hidden = false;
+  } else {
+    badge.classList.add("offline"); text.textContent = "Sign-in required";
+    out.hidden = true;
+  }
+}
+window.addEventListener("online", renderSyncBadge);
+window.addEventListener("offline", renderSyncBadge);
+
+function gateError(msg){
+  const g = $("gate-error");
+  g.textContent = msg;
+  g.classList.add("show");
+}
+
+/* ---------- auth ---------- */
+if (!SDK_LOADED) {
+  $("gate-signin-btn").disabled = true;
+  gateError("The Firebase library didn't load. This page needs a real origin — " +
+            "serve it with `python3 -m http.server 8000` rather than opening the file directly, " +
+            "and check you're online.");
+} else if (!FIREBASE_CONFIGURED) {
+  $("gate-signin-btn").disabled = true;
+  gateError("Firebase isn't configured yet. Paste your config object into the " +
+            "firebaseConfig block near the top of the script in index.html.");
+} else {
+  firebase.initializeApp(firebaseConfig);
+  db = firebase.firestore();
+  firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(() => {});
+  db.enablePersistence({ synchronizeTabs: false }).catch(() => {});
+
+  firebase.auth().onAuthStateChanged(async user => {
+    if (user) {
+      // ---- single-user lock ----
+      if (ALLOWED_UID && user.uid !== ALLOWED_UID) {
+        await firebase.auth().signOut();
+        gateError("This logbook is private to one account. You've been signed out.");
+        return;
+      }
+      if (!ALLOWED_UID) {
+        $("uidNotice").hidden = false;
+        $("uidValue").textContent = user.uid;
+      }
+
+      if (!_uidResolved) { _resolveUid(user.uid); _uidResolved = true; }
+      _authState = "synced";
+      _userEmail = user.email || "";
+      hideGate();
+      bootApp();
+      await loadBook();
+    } else {
+      _authState = "signedout";
+      _userEmail = "";
+      showGate();
+    }
+    renderSyncBadge();
+  });
+
+  $("gate-signin-btn").addEventListener("click", () => {
+    const btn = $("gate-signin-btn");
+    btn.disabled = true;
+    $("gate-error").classList.remove("show");
+    const provider = new firebase.auth.GoogleAuthProvider();
+    firebase.auth().signInWithPopup(provider)
+      .catch(err => {
+        console.error("Sign-in failed:", err);
+        gateError(err.code === "auth/unauthorized-domain"
+          ? "This domain isn't authorized. Add it in Firebase console → Authentication → Settings → Authorized domains."
+          : "Sign-in failed. Please try again. (" + (err.code || err.message) + ")");
+      })
+      .finally(() => { btn.disabled = false; });
+  });
+
+  $("signout-btn").addEventListener("click", () => firebase.auth().signOut());
+}
+
+renderSyncBadge();
+
+/* ---------- storage facade ----------
+   Same shape as window.storage.get/set — resolves to a string or null. */
+const storage = {
+  async get(key){
+    if (!FIREBASE_CONFIGURED || !SDK_LOADED) return null;
+    const uid = await uidReady;
+    if (!uid || !db) return null;
+    const snap = await db.collection("users").doc(uid).collection("logbook").doc(key).get();
+    return snap.exists ? snap.data().value : null;
+  },
+  async set(key, value){
+    if (!FIREBASE_CONFIGURED || !SDK_LOADED) return;
+    const uid = await uidReady;
+    if (!uid || !db) return;
+    await db.collection("users").doc(uid).collection("logbook").doc(key)
+            .set({ value, updatedAt: Date.now() });
+  },
+  async remove(key){
+    if (!FIREBASE_CONFIGURED || !SDK_LOADED) return;
+    const uid = await uidReady;
+    if (!uid || !db) return;
+    await db.collection("users").doc(uid).collection("logbook").doc(key).delete();
+  }
+};
+
+// =====================================================================
+// THE LOGBOOK
+// =====================================================================
+
+const WEEKS = [{"i":0,"d":"2026-08-17","t":35,"p":"Slackwater","rec":0,"slack":1},{"i":1,"d":"2026-08-24","t":35,"p":"Slackwater","rec":0,"slack":1},{"i":2,"d":"2026-08-31","t":35,"p":"Slackwater","rec":0,"slack":1},{"i":3,"d":"2026-09-07","t":35,"p":"Slackwater","rec":0,"slack":1},{"i":4,"d":"2026-09-14","t":40,"p":"Slackwater","rec":0,"slack":1},{"i":5,"d":"2026-09-21","t":40,"p":"Slackwater","rec":0,"slack":1},{"i":6,"d":"2026-09-28","t":40,"p":"Slackwater","rec":0,"slack":1},{"i":7,"d":"2026-10-05","t":35,"p":"Base","rec":1,"slack":0},{"i":8,"d":"2026-10-12","t":45,"p":"Base","rec":0,"slack":0},{"i":9,"d":"2026-10-19","t":50,"p":"Base","rec":0,"slack":0},{"i":10,"d":"2026-10-26","t":55,"p":"Base","rec":0,"slack":0},{"i":11,"d":"2026-11-02","t":40,"p":"Base","rec":1,"slack":0},{"i":12,"d":"2026-11-09","t":55,"p":"Base","rec":0,"slack":0},{"i":13,"d":"2026-11-16","t":60,"p":"Base","rec":0,"slack":0},{"i":14,"d":"2026-11-23","t":65,"p":"Base","rec":0,"slack":0},{"i":15,"d":"2026-11-30","t":40,"p":"Base","rec":1,"slack":0},{"i":16,"d":"2026-12-07","t":65,"p":"Base","rec":0,"slack":0},{"i":17,"d":"2026-12-14","t":70,"p":"Base","rec":0,"slack":0},{"i":18,"d":"2026-12-21","t":75,"p":"Base","rec":0,"slack":0},{"i":19,"d":"2026-12-28","t":50,"p":"Base","rec":1,"slack":0},{"i":20,"d":"2027-01-04","t":70,"p":"Base","rec":0,"slack":0},{"i":21,"d":"2027-01-11","t":80,"p":"Base","rec":0,"slack":0},{"i":22,"d":"2027-01-18","t":85,"p":"Base","rec":0,"slack":0},{"i":23,"d":"2027-01-25","t":55,"p":"Base","rec":1,"slack":0},{"i":24,"d":"2027-02-01","t":75,"p":"Base","rec":0,"slack":0},{"i":25,"d":"2027-02-08","t":80,"p":"Base","rec":0,"slack":0},{"i":26,"d":"2027-02-15","t":90,"p":"Base","rec":0,"slack":0},{"i":27,"d":"2027-02-22","t":55,"p":"Base","rec":1,"slack":0},{"i":28,"d":"2027-03-01","t":85,"p":"Build","rec":0,"slack":0},{"i":29,"d":"2027-03-08","t":95,"p":"Build","rec":0,"slack":0},{"i":30,"d":"2027-03-15","t":105,"p":"Build","rec":0,"slack":0},{"i":31,"d":"2027-03-22","t":65,"p":"Build","rec":1,"slack":0},{"i":32,"d":"2027-03-29","t":85,"p":"Build","rec":0,"slack":0},{"i":33,"d":"2027-04-05","t":105,"p":"Build","rec":0,"slack":0},{"i":34,"d":"2027-04-12","t":110,"p":"Build","rec":0,"slack":0},{"i":35,"d":"2027-04-19","t":70,"p":"Build","rec":1,"slack":0},{"i":36,"d":"2027-04-26","t":95,"p":"Build","rec":0,"slack":0},{"i":37,"d":"2027-05-03","t":105,"p":"Build","rec":0,"slack":0},{"i":38,"d":"2027-05-10","t":115,"p":"Build","rec":0,"slack":0},{"i":39,"d":"2027-05-17","t":75,"p":"Build","rec":1,"slack":0},{"i":40,"d":"2027-05-24","t":95,"p":"Build","rec":0,"slack":0},{"i":41,"d":"2027-05-31","t":105,"p":"Build","rec":0,"slack":0},{"i":42,"d":"2027-06-07","t":85,"p":"Slackwater","rec":0,"slack":1},{"i":43,"d":"2027-06-14","t":70,"p":"Slackwater","rec":0,"slack":1},{"i":44,"d":"2027-06-21","t":85,"p":"Slackwater","rec":0,"slack":1},{"i":45,"d":"2027-06-28","t":85,"p":"Slackwater","rec":0,"slack":1},{"i":46,"d":"2027-07-05","t":80,"p":"Slackwater","rec":0,"slack":1},{"i":47,"d":"2027-07-12","t":70,"p":"Slackwater","rec":0,"slack":1},{"i":48,"d":"2027-07-19","t":80,"p":"Slackwater","rec":0,"slack":1},{"i":49,"d":"2027-07-26","t":80,"p":"Slackwater","rec":0,"slack":1},{"i":50,"d":"2027-08-02","t":115,"p":"Peak","rec":0,"slack":0},{"i":51,"d":"2027-08-09","t":75,"p":"Peak","rec":1,"slack":0},{"i":52,"d":"2027-08-16","t":100,"p":"Peak","rec":0,"slack":0},{"i":53,"d":"2027-08-23","t":110,"p":"Peak","rec":0,"slack":0},{"i":54,"d":"2027-08-30","t":115,"p":"Peak","rec":0,"slack":0},{"i":55,"d":"2027-09-06","t":80,"p":"Peak","rec":1,"slack":0},{"i":56,"d":"2027-09-13","t":105,"p":"Peak","rec":0,"slack":0},{"i":57,"d":"2027-09-20","t":60,"p":"Taper","rec":0,"slack":0,"note":"Halve it. Keep the legs awake, not tired."},{"i":58,"d":"2027-09-27","t":40,"p":"Taper","rec":0,"slack":0,"note":"Short and easy. Bags packed by Thursday."},{"i":59,"d":"2027-10-04","t":185,"p":"Trip","rec":0,"slack":0,"trip":1,"note":"Cumberland → Georgetown."}];
+
+const MILESTONES = [
+  {id:"m1", when:"Nov 2026", txt:"Bike fit done, and the tire question settled — 38 mm minimum, 40–50 better."},
+  {id:"m2", when:"Dec 2026", txt:"First back-to-back: 30 Saturday, 20 Sunday. Write down what hurts on day two."},
+  {id:"m3", when:"Jan 2027", txt:"First rides on unpaved surface. Learn how much slower the same effort feels."},
+  {id:"m4", when:"Jan 2027", txt:"Back-to-back 35/25."},
+  {id:"m5", when:"Mar 2027", txt:"Back-to-back 35/30, both days on hardpack."},
+  {id:"m6", when:"Apr 2027", txt:"Back-to-back 40/35 with the bags on."},
+  {id:"m7", when:"May 2027", txt:"Three-day block 40/35/30 — full kit shakedown: bike, bags, food, shorts."},
+  {id:"m8", when:"Aug 2027", txt:"Three-day block 40/40/35, unpaved and loaded, at conversation pace."},
+  {id:"m9", when:"Sep 2027", txt:"Four-day dress rehearsal: 40 × 4, real bags, real food."},
+  {id:"m10",when:"Sep 2027", txt:"Logistics booked — lodging, Amtrak, and a short day built into day four."}
+];
+
+const BOOK_KEY = "book";
+let state = { rides:[], done:{} };
+let sel = 0, surf = "paved", saveTimer = null, booted = false;
+
+const DAY = 864e5;
+const parseD = s => { const [a,b,c] = s.split("-").map(Number); return Date.UTC(a, b-1, c); };
+const isoOf = t => new Date(t).toISOString().slice(0,10);
+const W0 = parseD(WEEKS[0].d);
+const weekOf = ds => Math.max(0, Math.min(WEEKS.length-1, Math.floor((parseD(ds)-W0)/(7*DAY))));
+const fmt = t => new Date(t).toLocaleDateString(undefined,{month:"short",day:"numeric",timeZone:"UTC"});
+const todayISO = () => { const n = new Date(); return isoOf(Date.UTC(n.getFullYear(),n.getMonth(),n.getDate())); };
+
+function setStatus(msg, isErr){
+  const s = $("status");
+  s.textContent = msg || "";
+  s.className = isErr ? "err" : "";
+}
+
+async function loadBook(){
+  setStatus("Loading your rides…");
+  try {
+    const raw = await storage.get(BOOK_KEY);
+    if (raw) {
+      const v = JSON.parse(raw);
+      state.rides = Array.isArray(v.rides) ? v.rides : [];
+      state.done  = (v.done && typeof v.done === "object") ? v.done : {};
+    }
+    renderAll(); renderMilestones();
+    setStatus(state.rides.length ? state.rides.length + " rides in the book."
+                                 : "Nothing logged yet — add your first ride below.");
+  } catch (e) {
+    console.error("load failed", e);
+    renderAll(); renderMilestones();
+    setStatus("Couldn't reach your saved data. It's still there — reload rather than re-entering rides.", true);
+  }
+}
+
+function save(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    try {
+      await storage.set(BOOK_KEY, JSON.stringify(state));
+      _saveState = "";
+      setStatus("Saved " + new Date().toLocaleTimeString());
+    } catch (e) {
+      console.error("save failed", e);
+      _saveState = "error";
+      setStatus("Couldn't save. If you're offline it'll sync on reconnect; otherwise export a backup.", true);
+    }
+    renderSyncBadge();
+  }, 250);
+}
+
+const milesIn = i => state.rides.filter(r => weekOf(r.date) === i).reduce((s,r) => s + r.mi, 0);
+const currentWeek = () => Math.max(0, Math.min(WEEKS.length-1, Math.floor((parseD(todayISO())-W0)/(7*DAY))));
+
+/* ---------- week panel ---------- */
+function renderWeek(){
+  const w = WEEKS[sel], done = milesIn(sel), pct = Math.min(100, done/w.t*100);
+  const a = W0 + sel*7*DAY;
+  $("wkId").textContent = w.trip ? "The trip" : "Week " + (sel+1);
+  $("wkDates").textContent = fmt(a) + " – " + fmt(a+6*DAY) + " · " + new Date(a).getUTCFullYear();
+
+  let tags = '<span class="tag">' + w.p + '</span>';
+  if (w.rec)   tags += '<span class="tag rec">Recovery week</span>';
+  if (w.slack) tags += '<span class="tag slack">Hold, don\'t build</span>';
+  if (w.trip)  tags  = '<span class="tag trip">184.5 miles · 5 days</span>';
+  $("wkTags").innerHTML = tags;
+
+  const bar = $("wkBar");
+  bar.style.width = pct + "%";
+  bar.className = done >= w.t ? "over" : "";
+  $("wkDone").textContent = Math.round(done);
+  $("wkTgt").textContent = w.t;
+  const left = w.t - done;
+  $("wkLeft").textContent = left > 0 ? Math.round(left) + " to go" : "target met";
+
+  const note = $("wkNote");
+  if (w.note)       { note.textContent = w.note; note.hidden = false; }
+  else if (w.rec)   { note.textContent = "Recovery week. Going easy now is what makes the next block possible — take it even though you don't want to."; note.hidden = false; }
+  else if (w.slack) { note.textContent = "Hold position. Early starts, no heroics. Don't try to build through the heat."; note.hidden = false; }
+  else              { note.hidden = true; }
+
+  const list = $("rideList");
+  const rides = state.rides.filter(r => weekOf(r.date) === sel).sort((x,y) => x.date < y.date ? -1 : 1);
+  list.innerHTML = "";
+  rides.forEach(r => {
+    const li = document.createElement("li");
+    li.innerHTML = '<b>' + r.mi + ' mi</b><span>' + fmt(parseD(r.date)) + '</span>' +
+      '<span class="surf' + (r.surf === "unpaved" ? " un" : "") + '">' + r.surf + '</span>' +
+      '<button class="del" type="button" data-id="' + r.id + '">Remove</button>';
+    list.appendChild(li);
+  });
+  $("rideEmpty").hidden = rides.length > 0;
+}
+
+/* ---------- season profile ---------- */
+const X0 = 44, X1 = 986, YB = 196, YT = 26;
+const N = WEEKS.length, CW = (X1-X0)/N, GAP = 1.6, TMAX = 120;
+const hOf = v => Math.min(v, TMAX)/TMAX*(YB-YT);
+const NS = "http://www.w3.org/2000/svg";
+const mk = (n,a) => { const e = document.createElementNS(NS,n); for (const k in a) e.setAttribute(k,a[k]); return e; };
+
+function buildProfileAxes(){
+  const g = $("pAx"); g.innerHTML = "";
+  [40,80,120].forEach(v => {
+    const y = YB - hOf(v);
+    g.appendChild(mk("line",{x1:X0,y1:y,x2:X1,y2:y,stroke:"var(--rule)","stroke-width":.6,opacity:.5}));
+    const t = mk("text",{class:"ax",x:X0-8,y:y+3,"text-anchor":"end"}); t.textContent = v; g.appendChild(t);
+  });
+  g.appendChild(mk("line",{class:"base",x1:X0,y1:YB,x2:X1,y2:YB}));
+  let last = "";
+  WEEKS.forEach((w,i) => {
+    const dt = new Date(W0 + i*7*DAY);
+    const lab = dt.toLocaleDateString(undefined,{month:"short",timeZone:"UTC"});
+    if (lab !== last) {
+      last = lab;
+      const x = X0 + i*CW;
+      g.appendChild(mk("line",{x1:x,y1:YB,x2:x,y2:YB+6,stroke:"var(--rule)","stroke-width":.8}));
+      const t = mk("text",{class:"ax",x:x+2,y:YB+19});
+      t.textContent = lab.toUpperCase() + (dt.getUTCMonth() === 0 ? " '" + String(dt.getUTCFullYear()).slice(2) : "");
+      g.appendChild(t);
+    }
+  });
+  const cx = X0 + currentWeek()*CW;
+  g.appendChild(mk("line",{class:"today",x1:cx,y1:YT-8,x2:cx,y2:YB}));
+  const tt = mk("text",{class:"ax",x:cx+4,y:YT-11,fill:"var(--iron)"}); tt.textContent = "NOW"; g.appendChild(tt);
+}
+
+function renderProfile(){
+  const g = $("pBody"); g.innerHTML = "";
+  WEEKS.forEach((w,i) => {
+    const x = X0 + i*CW, bw = Math.max(3, CW-GAP);
+    const th = hOf(w.t), done = milesIn(i), fh = hOf(done);
+    g.appendChild(mk("rect",{class:"chamber",x:x,y:YB-th,width:bw,height:th}));
+    if (fh > 0) g.appendChild(mk("rect",{class:"fill" + (done >= w.t ? " done" : ""),
+      x:x, y:YB-Math.min(fh,th), width:bw, height:Math.min(fh,th)}));
+    const hit = mk("rect",{class:"wk-hit",x:x,y:YT-10,width:bw+GAP,height:YB-YT+16,tabindex:"0",role:"button",
+      "aria-label":"Week " + (i+1) + ", target " + w.t + " miles, " + Math.round(done) + " logged"});
+    const ring = mk("rect",{class:"wk-ring" + (i === sel ? " sel" : ""), x:x-1, y:YB-th-1, width:bw+2, height:th+2});
+    hit.addEventListener("click", () => { sel = i; renderAll(); });
+    hit.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); sel = i; renderAll(); } });
+    g.appendChild(hit); g.appendChild(ring);
+  });
+}
+
+function renderStats(){
+  const total = state.rides.reduce((s,r) => s + r.mi, 0);
+  const cw = currentWeek();
+  const planned = WEEKS.slice(0, cw+1).reduce((s,w) => s + w.t, 0);
+  let hit = 0; for (let i = 0; i <= cw && i < N; i++) if (milesIn(i) >= WEEKS[i].t) hit++;
+  const longest = state.rides.reduce((m,r) => Math.max(m, r.mi), 0);
+  const unp = state.rides.filter(r => r.surf === "unpaved").reduce((s,r) => s + r.mi, 0);
+  $("stTotal").textContent = Math.round(total).toLocaleString();
+  $("stPct").textContent   = planned ? Math.round(total/planned*100) + "%" : "—";
+  $("stHit").textContent   = hit;
+  $("stLong").textContent  = Math.round(longest);
+  $("stUnp").textContent   = total ? Math.round(unp/total*100) + "%" : "0%";
+}
+
+function renderMilestones(){
+  const ul = $("msList"); ul.innerHTML = "";
+  MILESTONES.forEach(m => {
+    const li = document.createElement("li");
+    const b = document.createElement("button");
+    b.type = "button";
+    b.setAttribute("aria-pressed", state.done[m.id] ? "true" : "false");
+    b.innerHTML = '<span class="box"></span><span class="txt"><span class="when">' + m.when + '</span>' + m.txt + '</span>';
+    b.addEventListener("click", () => {
+      if (state.done[m.id]) delete state.done[m.id]; else state.done[m.id] = true;
+      save(); renderMilestones();
+    });
+    li.appendChild(b); ul.appendChild(li);
+  });
+}
+
+function renderCountdown(){
+  const trip = W0 + (N-1)*7*DAY;
+  const d = Math.round((trip - parseD(todayISO()))/DAY);
+  if (d > 0)       { $("cdNum").textContent = d;      $("cdLbl").textContent = "days to departure"; }
+  else if (d > -6) { $("cdNum").textContent = "Ride"; $("cdLbl").textContent = "you're on the towpath"; }
+  else             { $("cdNum").textContent = "Done"; $("cdLbl").textContent = "184.5 miles"; }
+}
+
+function renderAll(){ renderWeek(); renderProfile(); renderStats(); renderCountdown(); }
+
+function addRide(){
+  const miEl = $("inMi"), dEl = $("inDate");
+  const mi = parseFloat(miEl.value);
+  if (!(mi > 0)) { setStatus("Enter a distance in miles first.", true); miEl.focus(); return; }
+  if (mi > 300)  { setStatus("That's over 300 miles — check the number.", true); miEl.focus(); return; }
+  const date = dEl.value || todayISO();
+  state.rides.push({ id: Date.now() + "-" + Math.round(Math.random()*1e4), date: date, mi: Math.round(mi*10)/10, surf: surf });
+  miEl.value = "";
+  sel = weekOf(date);
+  save(); renderAll(); miEl.focus();
+}
+
+function download(name, text){
+  const url = URL.createObjectURL(new Blob([text], {type:"application/json"}));
+  const a = document.createElement("a");
+  a.href = url; a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function bootApp(){
+  if (booted) return;
+  booted = true;
+
+  $("inDate").value = todayISO();
+  sel = currentWeek();
+  buildProfileAxes();
+  renderAll();
+  renderMilestones();
+
+  $("btnAdd").addEventListener("click", addRide);
+  $("inMi").addEventListener("keydown", e => { if (e.key === "Enter") addRide(); });
+
+  const p = $("sPav"), u = $("sUnp");
+  p.addEventListener("click", () => { surf = "paved";   p.setAttribute("aria-pressed","true");  u.setAttribute("aria-pressed","false"); });
+  u.addEventListener("click", () => { surf = "unpaved"; u.setAttribute("aria-pressed","true");  p.setAttribute("aria-pressed","false"); });
+
+  $("rideList").addEventListener("click", e => {
+    const b = e.target.closest(".del"); if (!b) return;
+    state.rides = state.rides.filter(r => r.id !== b.dataset.id);
+    save(); renderAll();
+  });
+
+  $("btnExport").addEventListener("click", () => {
+    download("towpath-logbook-" + todayISO() + ".json",
+      JSON.stringify({ version:1, exported:new Date().toISOString(), rides:state.rides, done:state.done }, null, 2));
+    setStatus("Backup downloaded.");
+  });
+
+  $("btnImport").addEventListener("click", () => $("fileIn").click());
+  $("fileIn").addEventListener("change", async e => {
+    const f = e.target.files[0]; if (!f) return;
+    try {
+      const v = JSON.parse(await f.text());
+      if (!Array.isArray(v.rides)) throw new Error("no rides array");
+      if (!confirm("Replace your current logbook with " + v.rides.length + " rides from this file?")) return;
+      state.rides = v.rides;
+      state.done  = (v.done && typeof v.done === "object") ? v.done : {};
+      save(); renderAll(); renderMilestones();
+      setStatus("Imported " + v.rides.length + " rides.");
+    } catch (err) {
+      setStatus("That file doesn't look like a logbook backup.", true);
+    } finally { e.target.value = ""; }
+  });
+
+  $("btnReset").addEventListener("click", async () => {
+    if (!confirm("Delete every logged ride and checked milestone? Export a backup first if you're unsure.")) return;
+    state = { rides:[], done:{} };
+    try { await storage.remove(BOOK_KEY); setStatus("Logbook cleared."); }
+    catch (e) { save(); }
+    renderAll(); renderMilestones();
+  });
+}
+</script>
+</body>
+</html>
